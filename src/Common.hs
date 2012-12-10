@@ -17,10 +17,38 @@ import System.Random (randomRIO)
 
 type Image = [Double]
 type Weight = Double
-type Face = Int     -- 1 = Happy, 2 = Sad, 3 = Mischievous, 4 = Mad
-type Eyes = Double  -- \ / up    brows = 1  / \ down brows = 0
-type Mouth = Double -- \_/ happy mouth = 1  /-\ sad mouth  = 0
 
+data Face  = Happy | Sad | Mischievous | Mad
+           deriving Eq
+                    -- 1 = Happy, 2 = Sad,
+                    -- 3 = Mischievous, 4 = Mad
+
+data Eyes  = UpBrows | DownBrows
+           deriving Eq
+                    -- \ / up    brows = 1
+                    -- / \ down brows = 0
+
+data Mouth = Smile | Frown
+           deriving Eq
+                    -- \_/ happy mouth = 1
+                    -- /-\ sad mouth  = 0
+
+int2face :: Int -> Face
+int2face 1 = Happy
+int2face 2 = Sad
+int2face 3 = Mischievous
+int2face 4 = Mad
+int2face _ = error "Common.int2face: unexpected"
+
+int2eyes :: Int -> Eyes
+int2eyes 1 = UpBrows
+int2eyes 0 = DownBrows
+int2eyes _ = error "Common.int2eyes: unexpected"
+
+int2mouth :: Int -> Mouth
+int2mouth 1 = Smile
+int2mouth 0 = Frown
+int2mouth _ = error "Common.int2mouth: unexpected"
 
 -------------------------------------------------------------------
 -------- File read and write functions ----------------------------
@@ -42,8 +70,8 @@ readImages input =
 
 readAnswers :: String -> [Face]
 readAnswers inputAnswers =
-    map read $ filter (\line -> not (isAlpha (head line)))
-    $ concatMap words $ removeComments (lines inputAnswers)
+    map (int2face . read) . filter (not . isAlpha . head)
+    . concatMap words . removeComments . lines $ inputAnswers
     where
       removeComments xs =
         filter (\line -> not (null line || (head line) == '#')) xs
@@ -146,29 +174,28 @@ step n = if n > 0.5 then 1 else 0
 -- weights.  returns the face as an Int according to specs.
 perceiveFace :: [Weight] -> [Weight] -> (Double -> Double) -> Image -> Face
 perceiveFace eyesWeigths mouthWeights actfn img =
-    getFace (perceive img eyesWeigths actfn) (perceive img mouthWeights actfn)
+    getFace (int2eyes . round $ perceive img eyesWeigths actfn)
+    (int2mouth . round $ perceive img mouthWeights actfn)
 
 -- | perceive takes a image, weights and and a activation function, and returns
 -- the neurons output
 perceive :: Image -> [Weight] -> (Double -> Double) -> Double
-perceive inputs weights actfn = actfn $ sum $ zipWith (*) inputs weights
+perceive inputs weights actfn = actfn . sum $ zipWith (*) inputs weights
 
 
 -- | getEyesMouth returns the state of the eyes and mouth, given the face type.
 getEyesMouth :: Face -> (Eyes,Mouth)
-getEyesMouth 1 = (0,1)  -- Happy
-getEyesMouth 2 = (0,0) -- Sad
-getEyesMouth 3 = (1,0)  -- Mischievous
-getEyesMouth 4 = (1,1)   -- Mad
-getEyesMouth _ = error "Common.getEyesMouth: unexpected"
+getEyesMouth Happy       = (DownBrows, Smile)
+getEyesMouth Sad         = (DownBrows, Frown)
+getEyesMouth Mischievous = (UpBrows, Smile)
+getEyesMouth Mad         = (UpBrows, Frown)
 
 -- | getFace takes the state of the eyes and mouth, and returns the facetype
 getFace :: Eyes -> Mouth -> Face
-getFace 0 1 = 1 -- Happy
-getFace 0 0 = 2 -- Sad
-getFace 1 0 = 3 -- Mischievous
-getFace 1 1 = 4 -- Mad
-getFace _ _ = error "Common.getFace: unexpected"
+getFace DownBrows Smile = Happy
+getFace DownBrows Frown = Sad
+getFace UpBrows Smile   = Mischievous
+getFace UpBrows Frown   = Mad
 
 -------------------------------------------------------------------
 -------- Testing --------------------------------------------------
@@ -200,8 +227,8 @@ test :: [(Image, Eyes)] -> [(Image, Mouth)] -> [Weight] -> [Weight]
         -> [(Face,Face,Bool)] -> ([(Face,Face,Bool)], Int)
 test [] _ _ _ xs = (xs,length $ (filter (\(_,_,tupple) -> tupple)) xs)
 test ((image,eye):eyes) ((_, mouth):mouths) eyew mouthw xs =
-    let aj = (perceive image eyew step)
-        moth = (perceive image mouthw step)
+    let aj = int2eyes . round $ (perceive image eyew step)
+        moth = int2mouth . round $ (perceive image mouthw step)
         correct = aj == eye && moth == mouth
         in test eyes mouths eyew mouthw
            (((getFace aj moth),(getFace eye mouth),correct):xs)

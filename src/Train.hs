@@ -21,7 +21,6 @@ main = do
         (testEyes,trainEyes) = splitAt 50 shuffledEyes
         (testMouth,trainMouth) = splitAt 50 shuffledMouth
 
-
     eyeweights2 <- train trainEyes testEyes
     writePGM "eyew.pgm" eyeweights2
     writeFile "eye-weights" $ show eyeweights2
